@@ -5,6 +5,8 @@ import os
 import psycopg2
 import time
 import random
+import datetime
+import pause
 
 
 def _connectToDB(logger, dbDetails):
@@ -46,7 +48,6 @@ def _pullProbeList(logger):
 
                 addressRows = dbCursor.fetchall()
 
-
     except Exception as e:
         logger.error("Hit exception when pulling server list, exception = {0}".format(e))
 
@@ -65,32 +66,60 @@ def _pullProbeList(logger):
            
 
 
+def _getProbeTimeWindowSeconds(logger, windowSeconds, variationSeconds):
+
+    return random.randint(
+        windowSeconds - variationSeconds,
+        windowSeconds + variationSeconds )
+
+    
+
+
+def _fireProbes(logger, addressList, probeTimeoutSeconds):
+
+    for currAddress in addressList:
+         
+        pass 
+
+def _doSleep(logger, windowStartTime, probeEndTime, windowEndTime):
+
+    if probeEndTime > windowEndTime:
+        logger.error("Probe rounded ended AFTER five minute window!")
+        logger.error("Window start: {0} UTC\n  Window end: {1} UTC\nProbes end: {2} UTC\n".format(
+            windowStartTime, windowEndTime, probeEndTime) )
+        raise Exception("Service probes exceeded five minute window")
+
+    logger.info("Sleeping to window end time of {0} UTC ({1:.0f} seconds)".format(windowEndTime,
+        (windowEndTime - probeEndTime).total_seconds()) )
+    pause.until(windowEndTime)
+    afterSleepTime = datetime.datetime.utcnow()
+    logger.info("Awoke from sleep at {0} UTC".format(afterSleepTime) )
+    
+
+
 def main(logger):
     # TODO: Should do random wait from 0-300 seconds to ensure not all probe sites are on same five minute schedule
 
     minutesToSleep = 5
     secondsPerMinute = 60
     secondsToSleep = minutesToSleep * secondsPerMinute
-
     sleepPlusMinusVariation = 0.2
-
     sleepVariationSeconds = secondsToSleep * sleepPlusMinusVariation
+
+    probeTimeoutSeconds = 10
 
     while True:
         serverList = _pullProbeList(logger)
+        windowInSeconds = _getProbeTimeWindowSeconds(logger, secondsToSleep, sleepVariationSeconds)
+        windowStartTime = datetime.datetime.utcnow()
+        windowEndTime = windowStartTime + datetime.timedelta(seconds=windowInSeconds)
+        logger.info("Probe window starting at {0} UTC, ending at {1} UTC ({2} seconds)".format(
+            windowStartTime, windowEndTime, windowInSeconds) )
+        _fireProbes(logger, serverList, probeTimeoutSeconds)
+        probeEndTime = datetime.datetime.utcnow()
+        logger.info("Probe round ended at {0} UTC".format(probeEndTime) )
 
-        logger.info("Doing probes")
-
-
-        thisSleepDurationSeconds = random.randint(
-            secondsToSleep - sleepVariationSeconds, 
-            secondsToSleep + sleepVariationSeconds)
-
-        logger.info("Sleeping {0} seconds".format(thisSleepDurationSeconds))
-
-        time.sleep( thisSleepDurationSeconds )
-
-
+        _doSleep(logger, windowStartTime, probeEndTime, windowEndTime)
 
 
 if __name__ == "__main__":
