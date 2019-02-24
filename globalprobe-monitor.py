@@ -3,10 +3,13 @@
 import logging
 import os
 import psycopg2
-import time
 import random
 import datetime
 import pause
+import scapy.layers.inet
+import scapy.layers.ntp
+#from scapy.all import IP, UDP, sr1
+import ipaddress
 
 
 def _connectToDB(logger, dbDetails):
@@ -63,7 +66,6 @@ def _pullProbeList(logger):
     logger.info("Collected {0} addresses to probe".format(len(addressRows)) )
 
     return addressesToProbe
-           
 
 
 def _getProbeTimeWindowSeconds(logger, windowSeconds, variationSeconds):
@@ -72,14 +74,64 @@ def _getProbeTimeWindowSeconds(logger, windowSeconds, variationSeconds):
         windowSeconds - variationSeconds,
         windowSeconds + variationSeconds )
 
+
+def _probeIp(logger, currIpAddress):
+
+    # NTP offset of UNIX epoch taken from https://www.eecis.udel.edu/~mills/y2k.html
+    # ntpTimestampAtUnixEpoch = 2208988800
+
+    # Python from https://stackoverflow.com/questions/39466780/simple-sntp-python-script
+    """
+    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    data = '\x1b' + 47 * '\0'
+    client.sendto(data.encode('utf-8'), (currIpAddress, 123))
+    data, address = client.recvfrom(1024)
+    if data: 
+        print('Response received from {0}:'.format(address))
+        t = struct.unpack('!12I', data)[10] - TIME1970
+        print('\tTime = {0}'.format(time.ctime(t)) )
+    """
+
+    ntpPort = 123
+
+    generatedIpAddr = ipaddress.ip_address(currIpAddress)
+
+    if generatedIpAddr.version == 4:
+        ipLayer = scapy.layers.inet.IP(dst=currIpAddress)
+
+    elif generatedIpAddr.version == 6:
+        ipLayer = scapy.layers.inet.IPv6(dst=currIpAddress)
+
+    #sntpQuery = ipLayer / UDP(dport=ntpPort) / ("\x1b\x00\x00\x00"+"\x00"*11*4)
+    sntpQuery = ipLayer / \
+        scapy.layers.inet.UDP(dport=ntpPort) / \
+        scapy.layers.ntp.NTP()
+    serverReply = scapy.layers.inet.sr1(sntpQuery)
+    logger.info("Reply = {0}".format(serverReply))
+
     
+
+
+
+
+
 
 
 def _fireProbes(logger, addressList, probeTimeoutSeconds):
 
-    for currAddress in addressList:
+    for currAddressInfo in addressList:
+        currIp          = currAddressInfo['address']
+        currOwner       = currAddressInfo['owner_id']
+        currHostname    = currAddressInfo['dns_name']
+
+        logger.info("Sending probe to address {0} (owner={1}, hostname={2})".format(
+            currIp, currOwner, currHostname) )
+
+        _probeIp(logger, currIp)
+
+        break
          
-        pass 
+
 
 def _doSleep(logger, windowStartTime, probeEndTime, windowEndTime):
 

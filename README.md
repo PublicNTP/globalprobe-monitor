@@ -2,6 +2,12 @@
 
 This is the source for PublicNTP's GlobalProbe NTP monitoring platform probe code.
 
+# Prereq
+
+* Psycopg2
+* pause
+* scapy
+
 # Build
 
 Stuff.
@@ -9,6 +15,12 @@ Stuff.
 # Run
 
 Things.
+
+# Thanks
+
+[Python Network Programming Cookbook](https://www.packtpub.com/networking-and-servers/python-network-programming-cookbook-second-edition) for SNTP client code
+
+[David L. Mills](https://www.eecis.udel.edu/~mills/y2k.html) for table of conversion from NTP epoch to UNIX epoch.
 
 # Licensing
 
