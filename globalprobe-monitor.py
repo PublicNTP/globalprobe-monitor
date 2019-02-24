@@ -6,10 +6,11 @@ import psycopg2
 import random
 import datetime
 import pause
+import ipaddress
 import scapy.layers.inet
 import scapy.layers.ntp
-#from scapy.all import IP, UDP, sr1
-import ipaddress
+import scapy.sendrecv
+import pprint
 
 
 def _connectToDB(logger, dbDetails):
@@ -100,16 +101,57 @@ def _probeIp(logger, currIpAddress):
         ipLayer = scapy.layers.inet.IP(dst=currIpAddress)
 
     elif generatedIpAddr.version == 6:
+        logger.warn("Bailing on ipv6")
+        return
         ipLayer = scapy.layers.inet.IPv6(dst=currIpAddress)
 
-    #sntpQuery = ipLayer / UDP(dport=ntpPort) / ("\x1b\x00\x00\x00"+"\x00"*11*4)
-    sntpQuery = ipLayer / \
-        scapy.layers.inet.UDP(dport=ntpPort) / \
-        scapy.layers.ntp.NTP()
-    serverReply = scapy.layers.inet.sr1(sntpQuery)
-    logger.info("Reply = {0}".format(serverReply))
+    fullQuery = ipLayer / scapy.layers.inet.UDP(dport=ntpPort) / scapy.layers.ntp.NTP(version=4)
 
-    
+    #logger.info("Query: {0}".format(fullQuery[scapy.layers.ntp.NTP].show()))
+
+    #logger.info("Sending query:\n{0}".format(fullQuery.summary()))
+    serverReply = scapy.sendrecv.sr1(fullQuery)
+
+    # Get time response received
+    responseReceivedTime = datetime.datetime.utcnow()
+
+    # Convert current time to an NTP timestamp (seconds since 1900-01-01)
+    ntpTimestampAtUnixEpoch = 2208988800
+    responseReceivedNtpTimestamp = (responseReceivedTime - datetime.datetime.utcfromtimestamp(0)).total_seconds() + \
+        ntpTimestampAtUnixEpoch
+
+
+    # Scapy NTP doesn't appear to be able to decode, which is unfortunate 
+    responseNtp = serverReply[scapy.layers.ntp.NTP]
+    #logger.info("Response:\n{0}".format(responseNtp.show()))
+
+    replyTimes = {
+        'ref'   : responseNtp.ref,
+        'orig'  : responseNtp.orig,
+        'recv'  : responseNtp.recv,
+        'sent'  : responseNtp.sent
+    }
+
+    #logger.info("Response timestamps:\n{0}".format(pprint.pformat(replyTimes)))
+    #logger.info("Computed received: {0}".format(responseReceivedNtpTimestamp))
+
+
+    # Computing offset and delay, per https://www.meinbergglobal.com/english/info/ntp-packet.htm
+    t1 = replyTimes['orig']
+    t2 = replyTimes['recv']
+    t3 = replyTimes['sent']
+    t4 = responseReceivedNtpTimestamp
+
+    offset = ( (t2 - t1) + (t3 - t4) ) / 2
+    delay = (t4 - t1) - (t3 - t2)
+
+    logger.info("\nOffset: {0:9.6f}\n Delay: {1:9.6f}".format(offset, delay))
+
+
+
+
+
+
 
 
 
@@ -129,7 +171,7 @@ def _fireProbes(logger, addressList, probeTimeoutSeconds):
 
         _probeIp(logger, currIp)
 
-        break
+        #break
          
 
 
@@ -171,7 +213,8 @@ def main(logger):
         probeEndTime = datetime.datetime.utcnow()
         logger.info("Probe round ended at {0} UTC".format(probeEndTime) )
 
-        _doSleep(logger, windowStartTime, probeEndTime, windowEndTime)
+        #_doSleep(logger, windowStartTime, probeEndTime, windowEndTime)
+        break
 
 
 if __name__ == "__main__":
