@@ -8,6 +8,7 @@ import datetime
 import pause
 import ipaddress
 import scapy.layers.inet
+import scapy.layers.inet6
 import scapy.layers.ntp
 import scapy.sendrecv
 import pprint
@@ -104,12 +105,12 @@ def _probeIp(logger, currIpAddress):
         ipLayer = scapy.layers.inet.IP(dst=currIpAddress)
 
     elif generatedIpAddr.version == 6:
-        logger.warn("Bailing on ipv6")
-        return None
+        ipLayer = scapy.layers.inet6.IPv6(dst=currIpAddress)
 
-        #ipLayer = scapy.layers.inet.IPv6(dst=currIpAddress)
-
-    fullQuery = ipLayer / scapy.layers.inet.UDP(dport=ntpPort) / scapy.layers.ntp.NTP(version=4)
+    fullQuery = \
+        ipLayer / \
+        scapy.layers.inet.UDP(sport=random.randint(1024, 65535), dport=ntpPort) / \
+        scapy.layers.ntp.NTP(version=4)
 
     #logger.info("Query: {0}".format(fullQuery[scapy.layers.ntp.NTP].show()))
 
