@@ -2,19 +2,28 @@
 
 This is the source for PublicNTP's GlobalProbe NTP monitoring platform probe code.
 
-# Prereq
+# Prerequisites
 
-* Psycopg2
-* pause
-* scapy
+## pip
 
-# Build
+    sudo apt-get -y install python3-pip
 
-Stuff.
+## psycopg2
+
+    sudo pip3 install psycopg2-binary
+
+## pause
+
+    sudo pip3 install pause
+
+## scapy
+
+    sudo pip3 install scapy
 
 # Run
 
-Things.
+    GLOBALPROBE_SITE_ID="[site code]" GLOBALPROBE_DB_HOST="[pg host]" GLOBALPROBE_DB_PASSWORD="[pg user password]" GLOBALPROBE_DB_USER="[pg user]" GLOBALPROBE_DB_NAME="[pg db name]" ./globalprobe-monitor.py
+
 
 # Thanks
 
