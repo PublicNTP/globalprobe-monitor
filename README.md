@@ -6,19 +6,27 @@ This is the source for PublicNTP's GlobalProbe NTP monitoring platform probe cod
 
 ## pip
 
-    $ sudo apt-get -y install python3-pip
+```bash
+$ sudo apt-get -y install python3-pip
+```
 
 ## psycopg2
 
-    $ sudo pip3 install psycopg2-binary
+```bash
+$ sudo pip3 install psycopg2-binary
+```
 
 ## pause
 
-    $ sudo pip3 install pause
+```bash
+$ sudo pip3 install pause
+```
 
 ## scapy
 
-    $ sudo pip3 install scapy
+```bash
+$ sudo pip3 install scapy
+```
 
 # Run
 
