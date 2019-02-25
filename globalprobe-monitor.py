@@ -67,6 +67,8 @@ def _pullProbeList(logger):
 
     logger.debug("Collected {0} addresses to probe".format(len(addressRows)) )
 
+    #logger.debug(pprint.pformat(addressesToProbe))
+
     return addressesToProbe
 
 
@@ -111,7 +113,7 @@ def _probeIp(logger, currIpAddress):
     #logger.info("Query: {0}".format(fullQuery[scapy.layers.ntp.NTP].show()))
 
     #logger.info("Sending query:\n{0}".format(fullQuery.summary()))
-    serverReply = scapy.sendrecv.sr1(fullQuery, verbose=False)
+    serverReply = scapy.sendrecv.sr1(fullQuery, retry=5, timeout=10, verbose=False)
 
     # Get time response received
     responseReceivedTime = datetime.datetime.utcnow()
@@ -226,20 +228,26 @@ def _recordResultsInDatabase(logger, probeResults):
 
                     currResult = probeResults[currIp]
 
-                    logger.info("Curr result: {0}".format(pprint.pformat(currResult)))
+                    if abs(currResult['delay']) > 100 or abs(currResult['offset']) > 100:
+                        logger.warn("Got invalid results in probe {0}, skipping".format(
+                            pprint.pformat(currResult)) )
+                        continue
+                    else:
+
+                        #logger.info("Curr result: {0}".format(pprint.pformat(currResult)))
                     
-                    newDataRow = (
-                        globalProbeSiteId,
-                        currResult['server_address'],
-                        currResult['sent'].isoformat(),
-                        (currResult['sent'] + datetime.timedelta(seconds=currResult['delay'])).isoformat(),
-                        "{0} seconds".format(currResult['delay']),
-                        "{0} seconds".format(currResult['offset'])
-                    )
+                        newDataRow = (
+                            globalProbeSiteId,
+                            currResult['server_address'],
+                            currResult['sent'].isoformat(),
+                            (currResult['sent'] + datetime.timedelta(seconds=currResult['delay'])).isoformat(),
+                            "{0:.9f} seconds".format(currResult['delay']),
+                            "{0:.9f} seconds".format(currResult['offset'])
+                        )
 
-                    logger.info("Tuple to add to list:\n{0}".format(pprint.pformat(newDataRow)))
+                        #logger.info("Tuple to add to list:\n{0}".format(pprint.pformat(newDataRow)))
 
-                    dataRows.append(newDataRow)
+                        dataRows.append(newDataRow)
 
                 """
                 for currRow in dataRows:
@@ -268,17 +276,17 @@ def _recordResultsInDatabase(logger, probeResults):
 
 
 def main(logger):
-    minutesToSleep = 5
+    probeWindowMinutes = 2
     secondsPerMinute = 60
-    secondsToSleep = minutesToSleep * secondsPerMinute
-    sleepPlusMinusVariation = 0.2
-    sleepVariationSeconds = secondsToSleep * sleepPlusMinusVariation
+    secondsPerWindow = probeWindowMinutes * secondsPerMinute
+    windowPlusMinusVariation = 0.2
+    windowVariationSeconds = secondsPerWindow * windowPlusMinusVariation
 
     probeTimeoutSeconds = 10
 
     while True:
         serverList = _pullProbeList(logger)
-        windowInSeconds = _getProbeTimeWindowSeconds(logger, secondsToSleep, sleepVariationSeconds)
+        windowInSeconds = _getProbeTimeWindowSeconds(logger, secondsPerWindow, windowVariationSeconds)
         windowStartTime = datetime.datetime.utcnow()
         windowEndTime = windowStartTime + datetime.timedelta(seconds=windowInSeconds)
         logger.info("Probe window starting at {0} UTC, ending at {1} UTC ({2} seconds)".format(
@@ -289,8 +297,8 @@ def main(logger):
 
         _recordResultsInDatabase(logger, probeResults)
 
-        #_doSleep(logger, windowStartTime, probeEndTime, windowEndTime)
-        break
+        _doSleep(logger, windowStartTime, probeEndTime, windowEndTime)
+        #break
 
 
 if __name__ == "__main__":
