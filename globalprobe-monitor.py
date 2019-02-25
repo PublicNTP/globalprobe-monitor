@@ -116,7 +116,7 @@ def _probeIp(logger, currIpAddress):
     sentTime = datetime.datetime.utcnow()
 
     #logger.info("Sending query:\n{0}".format(fullQuery.summary()))
-    serverReply = scapy.sendrecv.sr1(fullQuery, retry=5, timeout=10, verbose=False)
+    serverReply = scapy.sendrecv.sr1(fullQuery, retry=3, timeout=3, verbose=False)
 
     # Did we even get a reply?
     if serverReply is None:
@@ -214,86 +214,80 @@ def _doSleep(logger, windowStartTime, probeEndTime, windowEndTime):
 
 def _recordResultsInDatabase(logger, probeResults):
 
-    try:
-        with _connectToDB(logger,  _getDbCredentials(logger)) as dbConnection:
-            with dbConnection.cursor() as dbCursor:
-                dataRows = []
+    with _connectToDB(logger,  _getDbCredentials(logger)) as dbConnection:
+        with dbConnection.cursor() as dbCursor:
+            dataRows = []
 
-                siteIdString = os.environ['GLOBALPROBE_SITE_ID']
+            siteIdString = os.environ['GLOBALPROBE_SITE_ID']
 
-                dbCursor.execute( 
-                    "SELECT probe_site_id " +
-                    "FROM probe_sites " + 
-                    "WHERE site_location_id = %s;",
+            dbCursor.execute( 
+                "SELECT probe_site_id " +
+                "FROM probe_sites " + 
+                "WHERE site_location_id = %s;",
 
-                    (siteIdString,) )
+                (siteIdString,) )
 
-                result = dbCursor.fetchone()
-                globalProbeSiteId = result[0]
+            result = dbCursor.fetchone()
+            globalProbeSiteId = result[0]
 
-                logger.info("Global probe site ID for {0}: {1}".format(siteIdString, globalProbeSiteId))
+            logger.info("Global probe site ID for {0}: {1}".format(siteIdString, globalProbeSiteId))
 
 
-                for currIp in probeResults:
+            for currIp in probeResults:
 
-                    currResult = probeResults[currIp]
+                currResult = probeResults[currIp]
 
-                    if abs(currResult['delay']) > 100 or abs(currResult['offset']) > 100:
-                        logger.warn("Got invalid results in probe {0}, skipping".format(
-                            pprint.pformat(currResult)) )
-                        continue
-                    else:
+                if ('delay' in currResult and 'offset' in currResult) and \
+                        (abs(currResult['delay']) > 100 or abs(currResult['offset']) > 100):
 
-                        #logger.info("Curr result: {0}".format(pprint.pformat(currResult)))
+                    logger.warn("Got invalid results in probe {0}, skipping".format(
+                        pprint.pformat(currResult)) )
+                    continue
+                else:
+
+                    #logger.info("Curr result: {0}".format(pprint.pformat(currResult)))
                     
 
-                        if 'timeout' not in currResult:
-                            newDataRow = (
-                                globalProbeSiteId,
-                                currResult['server_address'],
-                                currResult['sent'].isoformat(),
-                                (currResult['sent'] + datetime.timedelta(seconds=currResult['delay'])).isoformat(),
-                                "{0:.9f} seconds".format(currResult['delay']),
-                                "{0:.9f} seconds".format(currResult['offset'])
-                            )
-                        else:
-                            newDataRow = (
-                                globalProbeSiteId,
-                                currResult['server_address'],
-                                currResult['sent'].isoformat(),
-                                None,
-                                None,
-                                None
-                            )
+                    if 'timeout' not in currResult:
+                        newDataRow = (
+                            globalProbeSiteId,
+                            currResult['server_address'],
+                            currResult['sent'].isoformat(),
+                            (currResult['sent'] + datetime.timedelta(seconds=currResult['delay'])).isoformat(),
+                            "{0:.9f} seconds".format(currResult['delay']),
+                            "{0:.9f} seconds".format(currResult['offset'])
+                        )
+                    else:
+                        newDataRow = (
+                            globalProbeSiteId,
+                            currResult['server_address'],
+                            currResult['sent'].isoformat(),
+                            None,
+                            None,
+                            None
+                        )
 
-                        #logger.info("Tuple to add to list:\n{0}".format(pprint.pformat(newDataRow)))
+                    #logger.info("Tuple to add to list:\n{0}".format(pprint.pformat(newDataRow)))
 
-                        dataRows.append(newDataRow)
+                    dataRows.append(newDataRow)
 
-                """
-                for currRow in dataRows:
-                    logger.debug("Here's mogrify: {0}".format(
-                        dbCursor.mogrify("(%s,%s,%s,%s,%s,%s)", currRow).decode("utf-8"))
-                    )
-                """
+            """
+            for currRow in dataRows:
+                logger.debug("Here's mogrify: {0}".format(
+                    dbCursor.mogrify("(%s,%s,%s,%s,%s,%s)", currRow).decode("utf-8"))
+                )
+            """
 
-                args_str = ','.join(dbCursor.mogrify("(%s,%s,%s,%s,%s,%s)", x).decode("utf-8") for x in dataRows)
+            args_str = ','.join(dbCursor.mogrify("(%s,%s,%s,%s,%s,%s)", x).decode("utf-8") for x in dataRows)
 
-                #logger.debug(args_str)
+            #logger.debug(args_str)
 
-                dbCursor.execute(
-                    "INSERT INTO service_probes (probe_site_id, server_address, time_request_sent, " +
-                        "time_response_received, round_trip_time, estimated_utc_offset )" +
-                    "VALUES " + args_str)
-                dbConnection.commit()
+            dbCursor.execute(
+                "INSERT INTO service_probes (probe_site_id, server_address, time_request_sent, " +
+                    "time_response_received, round_trip_time, estimated_utc_offset )" +
+                "VALUES " + args_str)
+            dbConnection.commit()
 
-
-
-    except Exception as e:
-        logger.error("Hit exception when adding probe history, exception = {0}".format(e))
-
-    
-    
 
 
 def main(logger):
