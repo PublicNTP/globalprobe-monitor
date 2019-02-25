@@ -22,14 +22,23 @@ This is the source for PublicNTP's GlobalProbe NTP monitoring platform probe cod
 
 # Run
 
-    GLOBALPROBE_SITE_ID="[site code]" GLOBALPROBE_DB_HOST="[pg host]" GLOBALPROBE_DB_PASSWORD="[pg user password]" GLOBALPROBE_DB_USER="[pg user]" GLOBALPROBE_DB_NAME="[pg db name]" ./globalprobe-monitor.py
-
+```bash
+$ GLOBALPROBE_SITE_ID="[site code]" \
+GLOBALPROBE_DB_HOST="[pg host]" \
+GLOBALPROBE_DB_PASSWORD="[pg user password]" \
+GLOBALPROBE_DB_USER="[pg user]" \
+GLOBALPROBE_DB_NAME="[pg db name]" \
+nohup ./globalprobe-monitor.py
+(ctrl-Z)
+$ bg
+$ disown %1
+```
 
 # Thanks
 
-[Python Network Programming Cookbook](https://www.packtpub.com/networking-and-servers/python-network-programming-cookbook-second-edition) for SNTP client code
-
 [David L. Mills](https://www.eecis.udel.edu/~mills/y2k.html) for table of conversion from NTP epoch to UNIX epoch.
+
+[Scapy](https://scapy.net/) for being ridiculously powerful _and_ easy to use.
 
 # Licensing
 
