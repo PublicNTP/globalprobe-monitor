@@ -105,15 +105,25 @@ def _probeIp(logger, currIpAddress):
 
     elif generatedIpAddr.version == 6:
         logger.warn("Bailing on ipv6")
-        return
-        ipLayer = scapy.layers.inet.IPv6(dst=currIpAddress)
+        return None
+
+        #ipLayer = scapy.layers.inet.IPv6(dst=currIpAddress)
 
     fullQuery = ipLayer / scapy.layers.inet.UDP(dport=ntpPort) / scapy.layers.ntp.NTP(version=4)
 
     #logger.info("Query: {0}".format(fullQuery[scapy.layers.ntp.NTP].show()))
 
+    sentTime = datetime.datetime.utcnow()
+
     #logger.info("Sending query:\n{0}".format(fullQuery.summary()))
     serverReply = scapy.sendrecv.sr1(fullQuery, retry=5, timeout=10, verbose=False)
+
+    # Did we even get a reply?
+    if serverReply is None:
+        return {
+            'sent'      : sentTime,
+            'timeout'   : datetime.datetime.utcnow()
+        }
 
     # Get time response received
     responseReceivedTime = datetime.datetime.utcnow()
@@ -236,14 +246,25 @@ def _recordResultsInDatabase(logger, probeResults):
 
                         #logger.info("Curr result: {0}".format(pprint.pformat(currResult)))
                     
-                        newDataRow = (
-                            globalProbeSiteId,
-                            currResult['server_address'],
-                            currResult['sent'].isoformat(),
-                            (currResult['sent'] + datetime.timedelta(seconds=currResult['delay'])).isoformat(),
-                            "{0:.9f} seconds".format(currResult['delay']),
-                            "{0:.9f} seconds".format(currResult['offset'])
-                        )
+
+                        if 'timeout' not in currResult:
+                            newDataRow = (
+                                globalProbeSiteId,
+                                currResult['server_address'],
+                                currResult['sent'].isoformat(),
+                                (currResult['sent'] + datetime.timedelta(seconds=currResult['delay'])).isoformat(),
+                                "{0:.9f} seconds".format(currResult['delay']),
+                                "{0:.9f} seconds".format(currResult['offset'])
+                            )
+                        else:
+                            newDataRow = (
+                                globalProbeSiteId,
+                                currResult['server_address'],
+                                currResult['sent'].isoformat(),
+                                None,
+                                None,
+                                None
+                            )
 
                         #logger.info("Tuple to add to list:\n{0}".format(pprint.pformat(newDataRow)))
 
