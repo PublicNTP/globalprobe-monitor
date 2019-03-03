@@ -319,7 +319,7 @@ def main(logger):
 
         _recordResultsInDatabase(logger, probeResults)
 
-        break
+        #break
 
         _doSleep(logger, windowStartTime, probeEndTime, windowEndTime)
 
