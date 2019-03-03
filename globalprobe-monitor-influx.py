@@ -12,6 +12,7 @@ import scapy.layers.inet6
 import scapy.layers.ntp
 import scapy.sendrecv
 import pprint
+import influxdb
 
 
 def _connectToDB(logger, dbDetails):
@@ -234,7 +235,22 @@ def _doSleep(logger, windowStartTime, probeEndTime, windowEndTime):
 
 def _recordResultsInDatabase(logger, probeResults):
 
-    logger.info( "Going to log following:\n{0}".format(pprint.pformat(probeResults)) )
+    #logger.info( "Going to log following:\n{0}".format(pprint.pformat(probeResults)) )
+
+    influxClient = influxdb.InfluxDBClient(
+        host        = os.environ['INFLUXDB_HOST'],
+        port        = os.environ['INFLUXDB_PORT'],
+        username    = os.environ['INFLUXDB_USER'],
+        password    = os.environ['INFLUXDB_PASSWORD'],
+        ssl         = True, 
+        verify_ssl  = True )
+
+    dbList = influxClient.get_list_database()
+
+    logger.info("Databases:\n{0}".format(pprint.pformat(dbList)))
+
+    logger.info("Connected to Influx")
+
 
     for currAddress in probeResults:
 
@@ -265,7 +281,7 @@ def _recordResultsInDatabase(logger, probeResults):
 
             )
 
-        logging.info("Influx add string:\n{0}".format(influxAddString))
+        #logging.info("Influx add string:\n{0}".format(influxAddString))
 
 
 
