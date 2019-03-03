@@ -45,7 +45,7 @@ def _pullProbeList(logger):
         with _connectToDB(logger, dbCreds) as dbConnection:
             with dbConnection.cursor() as dbCursor:
                 dbCursor.execute(
-                    'SELECT owner_cognito_id, dns_name, server_address_id, address ' +
+                    'SELECT owner_cognito_id, dns_name, address ' +
                     'FROM monitored_servers ' + 
                     'JOIN server_addresses ' +
                     'ON monitored_servers.server_id = server_addresses.server_id ' +
@@ -61,8 +61,7 @@ def _pullProbeList(logger):
             {
                 'owner_id'          : currentDbRow[0],
                 'dns_name'          : currentDbRow[1],
-                'server_address'    : currentDbRow[2],
-                'address'           : currentDbRow[3]
+                'address'           : currentDbRow[2]
             }
         )
 
@@ -78,6 +77,10 @@ def _getProbeTimeWindowSeconds(logger, windowSeconds, variationSeconds):
     return random.randint(
         windowSeconds - variationSeconds,
         windowSeconds + variationSeconds )
+
+
+def _trimToMicroseconds(longFloat):
+    return float( "{0:.6f}".format(longFloat) )
 
 
 def _probeIp(logger, currIpAddress):
@@ -146,8 +149,9 @@ def _probeIp(logger, currIpAddress):
     t3 = replyTimes['sent']
     t4 = responseReceivedNtpTimestamp
 
-    offset = ( (t2 - t1) + (t3 - t4) ) / 2
-    delay = (t4 - t1) - (t3 - t2)
+    offset = _trimToMicroseconds( ((t2 - t1) + (t3 - t4)) / 2 )
+    delay = _trimToMicroseconds( (t4 - t1) - (t3 - t2) )
+
 
     #logger.info("\nOffset: {0:9.6f}\n Delay: {1:9.6f}".format(offset, delay))
 
@@ -162,8 +166,8 @@ def _probeIp(logger, currIpAddress):
             'server_stratum'        : responseNtp.stratum,
             'poll'                  : responseNtp.poll,
             'precision'             : responseNtp.precision,
-            'root_delay'            : responseNtp.delay,
-            'root_dispersion'       : responseNtp.dispersion,
+            'root_delay'            : _trimToMicroseconds(responseNtp.delay),
+            'root_dispersion'       : _trimToMicroseconds(responseNtp.dispersion),
             'timestamp_ref'         : responseNtp.ref,
             'timestamp_origin'      : responseNtp.orig,
             'timestamp_receive'     : responseNtp.recv,
@@ -193,14 +197,13 @@ def _fireProbes(logger, addressList, probeTimeoutSeconds):
         currIp              = currAddressInfo['address']
         currOwner           = currAddressInfo['owner_id']
         currHostname        = currAddressInfo['dns_name']
-        currServerAddress   = currAddressInfo['server_address']
 
         logger.info("Sending probe to address {0} (owner={1}, hostname={2})".format(
             currIp, currOwner, currHostname) )
 
         responseStats = _probeIp(logger, currIp)
         if responseStats is not None:
-            responseStats['server_address'] = currServerAddress
+            responseStats['dns_name'] = currHostname
 
             # logger.info(pprint.pformat(responseStats))
             probeResults[currIp] = responseStats
