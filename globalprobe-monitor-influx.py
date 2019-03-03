@@ -210,7 +210,7 @@ def _fireProbes(logger, addressList, probeTimeoutSeconds):
             # logger.info(pprint.pformat(responseStats))
             probeResults[currIp] = responseStats
 
-        break
+        #break
 
     #logger.info(pprint.pformat(probeResults))
     return probeResults
