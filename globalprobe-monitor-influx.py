@@ -156,9 +156,10 @@ def _probeIp(logger, currIpAddress):
     #logger.info("\nOffset: {0:9.6f}\n Delay: {1:9.6f}".format(offset, delay))
 
     returnData = {
-        'sent'      : datetime.datetime.fromtimestamp(t1 - ntpTimestampAtUnixEpoch),
-        'offset'    : offset,
-        'delay'     : delay,
+        'request_sent'          : datetime.datetime.fromtimestamp(t1 - ntpTimestampAtUnixEpoch),
+        'response_received'     : responseReceivedTime,
+        'offset'                : offset,
+        'delay'                 : delay,
         'ntp_packet_details': {
             'leap_indicator'        : responseNtp.leap,
             'protocol_version'      : responseNtp.version,
@@ -168,7 +169,7 @@ def _probeIp(logger, currIpAddress):
             'precision'             : responseNtp.precision,
             'root_delay'            : _trimToMicroseconds(responseNtp.delay),
             'root_dispersion'       : _trimToMicroseconds(responseNtp.dispersion),
-            'timestamp_ref'         : responseNtp.ref,
+            'timestamp_reference'   : responseNtp.ref,
             'timestamp_origin'      : responseNtp.orig,
             'timestamp_receive'     : responseNtp.recv,
             'timestamp_transmit'    : responseNtp.sent
@@ -208,7 +209,7 @@ def _fireProbes(logger, addressList, probeTimeoutSeconds):
             # logger.info(pprint.pformat(responseStats))
             probeResults[currIp] = responseStats
 
-        #break
+        break
 
     #logger.info(pprint.pformat(probeResults))
     return probeResults
@@ -233,84 +234,40 @@ def _doSleep(logger, windowStartTime, probeEndTime, windowEndTime):
 
 def _recordResultsInDatabase(logger, probeResults):
 
-    pprint.pprint(probeResults)
+    logger.info( "Going to log following:\n{0}".format(pprint.pformat(probeResults)) )
 
-    print( "Don't support influx writing yet, bailing on DB write" )
-    return 
+    for currAddress in probeResults:
 
-    with _connectToDB(logger,  _getDbCredentials(logger)) as dbConnection:
-        with dbConnection.cursor() as dbCursor:
-            dataRows = []
+        currResult = probeResults[currAddress]
 
-            siteIdString = os.environ['GLOBALPROBE_SITE_ID']
+        influxAddString = \
+            "ntp_query_response,ntp_server_dns_name={0},ntp_server_address={1},probe_site={2},ntp_id={3},ntp_reference_id={4} ".format(
+                currResult['dns_name'],
+                currAddress,
+                os.environ['GLOBALPROBE_SITE_ID'],
+                currResult['ntp_packet_details']['id'],
+                currResult['ntp_packet_details']['ref_id']) + \
+            "ntp_leap_indicator={0},ntp_protocol_version={1},ntp_mode={2},stratum={3},poll={4},precision={5},root_delay={6},root_dispersion={7},timestamp_reference={8},timestamp_origin={9},timestamp_receive={10},timestamp_transmit={11},round_trip_time_secs={12},utc_offset_secs={13} ".format(
+                currResult['ntp_packet_details']['leap_indicator'],
+                currResult['ntp_packet_details']['protocol_version'],
+                currResult['ntp_packet_details']['protocol_mode'],
+                currResult['ntp_packet_details']['server_stratum'],
+                currResult['ntp_packet_details']['poll'],
+                currResult['ntp_packet_details']['precision'],
+                currResult['ntp_packet_details']['root_delay'],
+                currResult['ntp_packet_details']['root_dispersion'],
+                currResult['ntp_packet_details']['timestamp_reference'],
+                currResult['ntp_packet_details']['timestamp_origin'],
+                currResult['ntp_packet_details']['timestamp_receive'],
+                currResult['ntp_packet_details']['timestamp_transmit'],
+                currResult['delay'],
+                currResult['offset']
 
-            dbCursor.execute( 
-                "SELECT probe_site_id " +
-                "FROM probe_sites " + 
-                "WHERE site_location_id = %s;",
+            )
 
-                (siteIdString,) )
-
-            result = dbCursor.fetchone()
-            globalProbeSiteId = result[0]
-
-            logger.info("Global probe site ID for {0}: {1}".format(siteIdString, globalProbeSiteId))
+        logging.info("Influx add string:\n{0}".format(influxAddString))
 
 
-            for currIp in probeResults:
-
-                currResult = probeResults[currIp]
-
-                if ('delay' in currResult and 'offset' in currResult) and \
-                        (abs(currResult['delay']) > 100 or abs(currResult['offset']) > 100):
-
-                    logger.warn("Got invalid results in probe {0}, skipping".format(
-                        pprint.pformat(currResult)) )
-                    continue
-                else:
-
-                    #logger.info("Curr result: {0}".format(pprint.pformat(currResult)))
-                    
-
-                    if 'timeout' not in currResult:
-                        newDataRow = (
-                            globalProbeSiteId,
-                            currResult['server_address'],
-                            currResult['sent'].isoformat(),
-                            (currResult['sent'] + datetime.timedelta(seconds=currResult['delay'])).isoformat(),
-                            "{0:.9f} seconds".format(currResult['delay']),
-                            "{0:.9f} seconds".format(currResult['offset'])
-                        )
-                    else:
-                        newDataRow = (
-                            globalProbeSiteId,
-                            currResult['server_address'],
-                            currResult['sent'].isoformat(),
-                            None,
-                            None,
-                            None
-                        )
-
-                    #logger.info("Tuple to add to list:\n{0}".format(pprint.pformat(newDataRow)))
-
-                    dataRows.append(newDataRow)
-
-            """
-            for currRow in dataRows:
-                logger.debug("Here's mogrify: {0}".format(
-                    dbCursor.mogrify("(%s,%s,%s,%s,%s,%s)", currRow).decode("utf-8"))
-                )
-            """
-
-            args_str = ','.join(dbCursor.mogrify("(%s,%s,%s,%s,%s,%s)", x).decode("utf-8") for x in dataRows)
-
-            #logger.debug(args_str)
-
-            dbCursor.execute(
-                "INSERT INTO service_probes (probe_site_id, server_address, time_request_sent, " +
-                    "time_response_received, round_trip_time, estimated_utc_offset )" +
-                "VALUES " + args_str)
-            dbConnection.commit()
 
 
 
@@ -336,8 +293,9 @@ def main(logger):
 
         _recordResultsInDatabase(logger, probeResults)
 
-        _doSleep(logger, windowStartTime, probeEndTime, windowEndTime)
         break
+
+        _doSleep(logger, windowStartTime, probeEndTime, windowEndTime)
 
 
 if __name__ == "__main__":
