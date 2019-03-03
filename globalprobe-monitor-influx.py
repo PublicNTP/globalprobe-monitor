@@ -245,43 +245,53 @@ def _recordResultsInDatabase(logger, probeResults):
         ssl         = True, 
         verify_ssl  = True )
 
-    dbList = influxClient.get_list_database()
+    #dbList = influxClient.get_list_database()
+    #logger.info("Databases:\n{0}".format(pprint.pformat(dbList)))
 
-    logger.info("Databases:\n{0}".format(pprint.pformat(dbList)))
+    influxClient.switch_database('globalprobe')
 
-    logger.info("Connected to Influx")
+    logger.info("Connected to GlobalProbe Influx DB")
 
+    influxMeasurementsToAdd = []
 
     for currAddress in probeResults:
 
         currResult = probeResults[currAddress]
 
-        influxAddString = \
-            "ntp_query_response,ntp_server_dns_name={0},ntp_server_address={1},probe_site={2},ntp_id={3},ntp_reference_id={4} ".format(
-                currResult['dns_name'],
-                currAddress,
-                os.environ['GLOBALPROBE_SITE_ID'],
-                currResult['ntp_packet_details']['id'],
-                currResult['ntp_packet_details']['ref_id']) + \
-            "ntp_leap_indicator={0},ntp_protocol_version={1},ntp_mode={2},stratum={3},poll={4},precision={5},root_delay={6},root_dispersion={7},timestamp_reference={8},timestamp_origin={9},timestamp_receive={10},timestamp_transmit={11},round_trip_time_secs={12},utc_offset_secs={13} ".format(
-                currResult['ntp_packet_details']['leap_indicator'],
-                currResult['ntp_packet_details']['protocol_version'],
-                currResult['ntp_packet_details']['protocol_mode'],
-                currResult['ntp_packet_details']['server_stratum'],
-                currResult['ntp_packet_details']['poll'],
-                currResult['ntp_packet_details']['precision'],
-                currResult['ntp_packet_details']['root_delay'],
-                currResult['ntp_packet_details']['root_dispersion'],
-                currResult['ntp_packet_details']['timestamp_reference'],
-                currResult['ntp_packet_details']['timestamp_origin'],
-                currResult['ntp_packet_details']['timestamp_receive'],
-                currResult['ntp_packet_details']['timestamp_transmit'],
-                currResult['delay'],
-                currResult['offset']
+        currMeasurement = {
+            'measurement': 'ntp_query_response',
+            'tags': {
+                'ntp_server_dns_name'           : currResult['dns_name'],
+                'ntp_server_address'            : currAddress,
+                'probe_site'                    : os.environ['GLOBALPROBE_SITE_ID'],
+                'ntp_id'                        : currResult['ntp_packet_details']['id'],
+                'ntp_ref_id'                    : currResult['ntp_packet_details']['ref_id'],
+            },
+            'time': "{0}Z".format(currResult['response_received'].isoformat()),
+            'fields': {
+                'leap_indicator'        : currResult['ntp_packet_details']['leap_indicator'],
+                'protocol_version'      : currResult['ntp_packet_details']['protocol_version'],
+                'protocol_mode'         : currResult['ntp_packet_details']['protocol_mode'],
+                'server_stratum'        : currResult['ntp_packet_details']['server_stratum'],
+                'server_poll'           : currResult['ntp_packet_details']['poll'],
+                'server_precision'      : currResult['ntp_packet_details']['precision'],
+                'root_delay'            : currResult['ntp_packet_details']['root_delay'],
+                'root_dispersion'       : currResult['ntp_packet_details']['root_dispersion'],
+                'timestamp_reference'   : currResult['ntp_packet_details']['timestamp_reference'],
+                'timestamp_origin'      : currResult['ntp_packet_details']['timestamp_origin'],
+                'timestamp_receive'     : currResult['ntp_packet_details']['timestamp_receive'],
+                'timestamp_transmit'    : currResult['ntp_packet_details']['timestamp_transmit'],
+                'round_trip_time_secs'  : currResult['delay'],
+                'utc_offset_secs'       : currResult['offset'],
+            }
+        }
 
-            )
+        logger.info("Adding measurement to list:\n{0}".format(
+            pprint.pformat(currMeasurement)) )
 
-        #logging.info("Influx add string:\n{0}".format(influxAddString))
+        influxMeasurementsToAdd.append(currMeasurement)
+        
+    influxClient.write_points(influxMeasurementsToAdd)
 
 
 
