@@ -28,6 +28,12 @@ $ sudo pip3 install pause
 $ sudo pip3 install scapy
 ```
 
+## influxdb Python client
+
+```bash
+$ sudo pip3 install influxdb
+```
+
 # Run
 
 ```bash
@@ -36,6 +42,10 @@ GLOBALPROBE_DB_HOST="[pg host]" \
 GLOBALPROBE_DB_PASSWORD="[pg user password]" \
 GLOBALPROBE_DB_USER="[pg user]" \
 GLOBALPROBE_DB_NAME="[pg db name]" \
+INFLUXDB_HOST="[influx server host]" \
+INFLUXDB_PORT="8086" \
+INFLUXDB_USER="[influx db user]" \
+INFLUXDB_PASSWORD="[influx db password]" \
 nohup ./globalprobe-monitor.py
 (ctrl-Z)
 $ bg
