@@ -179,6 +179,8 @@ def _probeIp(logger, currIpAddress):
         returnData['ntp_packet_details']['id'] = responseNtp.id
     if hasattr(responseNtp, 'ref_id') is True:
         returnData['ntp_packet_details']['ref_id'] = responseNtp.ref_id
+        if returnData['ntp_packet_details']['ref_id'] is not None:
+            returnData['ntp_packet_details']['ref_id'] = returnData['ntp_packet_details']['ref_id'].decode('utf-8')
 
     return returnData
 
